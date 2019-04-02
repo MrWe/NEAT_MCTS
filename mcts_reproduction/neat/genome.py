@@ -172,6 +172,11 @@ class DefaultGenome(object):
         # Fitness results.
         self.fitness = None
 
+        
+        # Q and N value used in monte carlo tree search
+        self.Q = 0
+        self.N = 0
+
     def configure_new(self, config):
         """Configure a new genome based on the given configuration."""
 
@@ -332,6 +337,9 @@ class DefaultGenome(object):
         self.add_connection(config, i, new_node_id, 1.0, True)
         self.add_connection(config, new_node_id, o, conn_to_split.weight, True)
 
+    def get_possible_new_nodes(self, config):
+        return self.connections
+
     def add_connection(self, config, input_key, output_key, weight, enabled):
         # TODO: Add further validation of this connection addition?
         assert isinstance(input_key, int)
@@ -344,6 +352,26 @@ class DefaultGenome(object):
         connection.weight = weight
         connection.enabled = enabled
         self.connections[key] = connection
+
+    def get_possible_new_connections(self, config):
+        possible_connections = []
+
+        possible_outputs = list(iterkeys(self.nodes))
+
+        possible_inputs = possible_outputs + config.input_keys
+
+        for p_o in possible_outputs:
+            for p_i in possible_inputs:
+                key = (p_i, p_o)
+                if key in self.connections:
+                    continue
+                if p_i in config.output_keys and p_o in config.output_keys:
+                    continue
+                if config.feed_forward and creates_cycle(list(iterkeys(self.connections)), key):
+                    continue
+                possible_connections.append(key)
+
+        return possible_connections
 
     def mutate_add_connection(self, config):
         """

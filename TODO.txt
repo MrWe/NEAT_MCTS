@@ -1,7 +1,10 @@
 1. Find available actions for genome: Perform each available mutation.
+    - Find possible places to add connections -> nodes with no connection between them
+    - Find places to add nodes -> Can split all connections
+    - Make copy of parent with each of these actions done? All all to children array of parent?
 2. Select next state
 3. Simulate: Perform random mutations/neuroevolution k number of times. 
 4. Backpropagation
 
 
-5-> Only do 1-4 for inside each species
+5-> Only do 1-4 for individuals of each species

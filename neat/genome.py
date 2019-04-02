@@ -172,9 +172,6 @@ class DefaultGenome(object):
         # Fitness results.
         self.fitness = None
 
-        # Q and N value used in monte carlo tree search
-        self.Q = 0
-        self.N = 0
         
 
     def configure_new(self, config):

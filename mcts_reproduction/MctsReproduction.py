@@ -111,6 +111,15 @@ class MctsReproduction(DefaultClassConfig):
             if q < genome.Q:
                 genome.Q = q
 
+    # TODO: Find possible add/delete_connection and find possible add/delete_node
+    def get_possible_actions(self, genome, config):
+
+        # Find possible connections to add
+        print(genome.get_possible_new_connections(config))
+
+        # Find possible nodes to add
+        pass
+
     def reproduce(self, config, species, pop_size, generation):
         """
         Handles creation of genomes, either from scratch or by sexual or
@@ -202,8 +211,11 @@ class MctsReproduction(DefaultClassConfig):
 
             # Transfer best individual
             new_population[0] = best_individual
-
+            print("----------------------------------")
+            self.get_possible_actions(best_individual, config.genome_config)
+            print("----------------------------------")
             while spawn > 0:
+
                 spawn -= 1
                 gid = next(self.genome_indexer)
                 child = config.genome_type(gid)
