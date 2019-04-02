@@ -172,6 +172,11 @@ class DefaultGenome(object):
         # Fitness results.
         self.fitness = None
 
+        # Q and N value used in monte carlo tree search
+        self.Q = 0
+        self.N = 0
+        
+
     def configure_new(self, config):
         """Configure a new genome based on the given configuration."""
 
@@ -263,6 +268,7 @@ class DefaultGenome(object):
             else:
                 # Homologous gene: combine genes from both parents.
                 self.nodes[key] = ng1.crossover(ng2)
+        
 
     def mutate(self, config):
         """ Mutates this genome. """

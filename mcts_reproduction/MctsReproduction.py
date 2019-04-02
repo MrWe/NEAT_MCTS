@@ -99,6 +99,18 @@ class MctsReproduction(DefaultClassConfig):
 
         return spawn_amounts
 
+    # TODO
+    def simulate(self, genome):
+        pass
+
+    # propagates q value of a genome up the tree if the q value is better than already found paths.
+    def backpropagate(self, genome):
+        q = genome.Q
+        while(genome.parent):
+            genome = genome.parent
+            if q < genome.Q:
+                genome.Q = q
+
     def reproduce(self, config, species, pop_size, generation):
         """
         Handles creation of genomes, either from scratch or by sexual or

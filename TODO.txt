@@ -1,0 +1,7 @@
+1. Find available actions for genome: Perform each available mutation.
+2. Select next state
+3. Simulate: Perform random mutations/neuroevolution k number of times. 
+4. Backpropagation
+
+
+5-> Only do 1-4 for inside each species
