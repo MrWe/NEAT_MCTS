@@ -177,6 +177,8 @@ class DefaultGenome(object):
         self.Q = 0
         self.N = 0
 
+        self.children = []
+
     def configure_new(self, config):
         """Configure a new genome based on the given configuration."""
 
