@@ -123,15 +123,18 @@ class MctsReproduction(DefaultClassConfig):
         return possible_connections, possible_nodes
 
     def create_child(self, parent, action, action_type, config):
-        child = config.genome_type(parent.key)
+        gid = next(self.genome_indexer)
+        child = config.genome_type(gid)
         child.configure_copy(parent, config.genome_config)
 
-        print(action)
-
         if action_type == 'connection':
-            pass
+            child.add_connection(config.genome_config,
+                                 action[0], action[1], 1.0, True)
+
         elif action_type == 'node':
-            pass
+            child.add_node(config.genome_config, action)
+
+        return child
 
     def reproduce(self, config, species, pop_size, generation):
         """
@@ -225,17 +228,21 @@ class MctsReproduction(DefaultClassConfig):
             # Transfer best individual
             new_population[0] = best_individual
 
+            # temp
+            current_parent = best_individual
+
             possible_connections, possible_nodes = self.get_possible_actions(
                 best_individual, config.genome_config)
 
-            if(len(possible_connections) > 0):
-                self.create_child(
-                    best_individual, possible_connections[0], 'connection', config)
+            for connection in possible_connections:
+                current_parent.add_child(self.create_child(
+                    best_individual, connection, 'connection', config))
 
-                exit()
+            for node in list(possible_nodes.keys()):
+                current_parent.add_child(self.create_child(
+                    best_individual, node, 'node', config))
 
             while spawn > 0:
-
                 spawn -= 1
                 gid = next(self.genome_indexer)
                 child = config.genome_type(gid)

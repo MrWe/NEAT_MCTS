@@ -280,6 +280,9 @@ class DefaultGenome(object):
         for key, n in iteritems(genome.nodes):
             self.nodes[key] = n.copy()
 
+    def add_child(self, genome):
+        self.children.append(genome)
+
     def mutate(self, config):
         """ Mutates this genome. """
 
@@ -354,6 +357,21 @@ class DefaultGenome(object):
         connection.weight = weight
         connection.enabled = enabled
         self.connections[key] = connection
+
+    def add_node(self, config, connection_to_split):
+        conn_to_split = self.connections[connection_to_split]
+        new_node_id = config.get_new_node_key(self.nodes)
+        ng = self.create_node(config, new_node_id)
+        self.nodes[new_node_id] = ng
+
+        # Disable this connection and create two new connections joining its nodes via
+        # the given node.  The new node+connections have roughly the same behavior as
+        # the original connection (depending on the activation function of the new node).
+        conn_to_split.enabled = False
+
+        i, o = conn_to_split.key
+        self.add_connection(config, i, new_node_id, 1.0, True)
+        self.add_connection(config, new_node_id, o, conn_to_split.weight, True)
 
     def get_possible_new_connections(self, config):
         possible_connections = []
