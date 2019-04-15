@@ -113,9 +113,12 @@ class Population(object):
                     break
 
             # Create the next generation from the current generation.
-            self.population = self.reproduction.reproduce(self.config, self.species,
-                                                          self.config.pop_size, self.generation, fitness_function)
+            current_best_seen, self.population = self.reproduction.reproduce(self.config, self.species,
+                                                                             self.config.pop_size, self.generation, fitness_function)
 
+            if self.best_genome is None or self.best_genome.fitness > current_best_seen.fitness:
+                self.best_genome = current_best_seen
+            '''
             # Check for complete extinction.
             if not self.species.species:
                 self.reporters.complete_extinction()
@@ -128,6 +131,7 @@ class Population(object):
                                                                    self.config.pop_size)
                 else:
                     raise CompleteExtinctionException()
+            '''
 
             # Divide the new population into species.
             self.species.speciate(

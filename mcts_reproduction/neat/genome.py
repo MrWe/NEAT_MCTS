@@ -181,6 +181,8 @@ class DefaultGenome(object):
         self.children = []
 
         self.expanded = False
+    
+    
 
     def configure_new(self, config):
         """Configure a new genome based on the given configuration."""

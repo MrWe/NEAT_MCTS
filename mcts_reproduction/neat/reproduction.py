@@ -19,6 +19,7 @@ from neat.six_util import iteritems, itervalues
 # configuration. This scheme should be adaptive so that species do not evolve
 # to become "cautious" and only make very slow progress.
 
+
 class DefaultReproduction(DefaultClassConfig):
     """
     Implements the default NEAT-python reproduction scheme:
@@ -29,7 +30,8 @@ class DefaultReproduction(DefaultClassConfig):
     def parse_config(cls, param_dict):
         return DefaultClassConfig(param_dict,
                                   [ConfigParameter('elitism', int, 0),
-                                   ConfigParameter('survival_threshold', float, 0.2),
+                                   ConfigParameter(
+                                       'survival_threshold', float, 0.2),
                                    ConfigParameter('min_species_size', int, 2),
                                    ConfigParameter('fitness_min_divisor', float, 1.0)])
 
@@ -49,10 +51,9 @@ class DefaultReproduction(DefaultClassConfig):
             config.fitness_min_divisor = NORM_EPSILON
         elif config.fitness_min_divisor < float_info.epsilon:
             print("Fitness_min_divisor {0:n} is too low; increasing to {1:n}".format(
-                config.fitness_min_divisor,float_info.epsilon), file=stderr)
+                config.fitness_min_divisor, float_info.epsilon), file=stderr)
             stderr.flush()
             config.fitness_min_divisor = float_info.epsilon
-
 
     def create_new(self, genome_type, genome_config, num_genomes):
         new_genomes = {}
@@ -93,7 +94,8 @@ class DefaultReproduction(DefaultClassConfig):
         # the population size requested by the user.
         total_spawn = sum(spawn_amounts)
         norm = pop_size / total_spawn
-        spawn_amounts = [max(min_species_size, int(round(n * norm))) for n in spawn_amounts]
+        spawn_amounts = [max(min_species_size, int(round(n * norm)))
+                         for n in spawn_amounts]
 
         return spawn_amounts
 
@@ -116,7 +118,8 @@ class DefaultReproduction(DefaultClassConfig):
             if stagnant:
                 self.reporters.species_stagnant(stag_sid, stag_s)
             else:
-                all_fitnesses.extend(m.fitness for m in itervalues(stag_s.members))
+                all_fitnesses.extend(
+                    m.fitness for m in itervalues(stag_s.members))
                 remaining_species.append(stag_s)
         # The above comment was not quite what was happening - now getting fitnesses
         # only from members of non-stagnated species.
@@ -124,14 +127,15 @@ class DefaultReproduction(DefaultClassConfig):
         # No species left.
         if not remaining_species:
             species.species = {}
-            return {} # was []
+            return {}  # was []
 
         # Find minimum/maximum fitness across the entire population, for use in
         # species adjusted fitness computation.
         min_fitness = min(all_fitnesses)
         max_fitness = max(all_fitnesses)
         # Do not allow the fitness range to be zero, as we divide by it below.
-        fitness_range = max(self.reproduction_config.fitness_min_divisor, max_fitness - min_fitness)
+        fitness_range = max(
+            self.reproduction_config.fitness_min_divisor, max_fitness - min_fitness)
         for afs in remaining_species:
             # Compute adjusted fitness.
             msf = mean([m.fitness for m in itervalues(afs.members)])
@@ -139,8 +143,9 @@ class DefaultReproduction(DefaultClassConfig):
             afs.adjusted_fitness = af
 
         adjusted_fitnesses = [s.adjusted_fitness for s in remaining_species]
-        avg_adjusted_fitness = mean(adjusted_fitnesses) # type: float
-        self.reporters.info("Average adjusted fitness: {:.3f}".format(avg_adjusted_fitness))
+        avg_adjusted_fitness = mean(adjusted_fitnesses)  # type: float
+        self.reporters.info(
+            "Average adjusted fitness: {:.3f}".format(avg_adjusted_fitness))
 
         # Compute the number of new members for each species in the new generation.
         previous_sizes = [len(s.members) for s in remaining_species]
@@ -148,7 +153,8 @@ class DefaultReproduction(DefaultClassConfig):
         # Isn't the effective min_species_size going to be max(min_species_size,
         # self.reproduction_config.elitism)? That would probably produce more accurate tracking
         # of population sizes and relative fitnesses... doing. TODO: document.
-        min_species_size = max(min_species_size,self.reproduction_config.elitism)
+        min_species_size = max(
+            min_species_size, self.reproduction_config.elitism)
         spawn_amounts = self.compute_spawn(adjusted_fitnesses, previous_sizes,
                                            pop_size, min_species_size)
 
@@ -195,7 +201,8 @@ class DefaultReproduction(DefaultClassConfig):
                 # genetically identical clone of the parent (but with a different ID).
                 gid = next(self.genome_indexer)
                 child = config.genome_type(gid)
-                child.configure_crossover(parent1, parent2, config.genome_config)
+                child.configure_crossover(
+                    parent1, parent2, config.genome_config)
                 child.mutate(config.genome_config)
                 new_population[gid] = child
                 self.ancestors[gid] = (parent1_id, parent2_id)

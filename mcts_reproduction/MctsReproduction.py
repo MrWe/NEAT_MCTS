@@ -6,6 +6,10 @@ from __future__ import division, print_function
 
 import math
 import random
+try:
+    import Queue as Q  # ver. < 3.0
+except ImportError:
+    import queue as Q
 
 from itertools import count
 from sys import stderr, float_info
@@ -57,7 +61,7 @@ class MctsReproduction(DefaultClassConfig):
 
     def create_new(self, genome_type, genome_config, num_genomes):
         new_genomes = {}
-        for i in range(num_genomes):
+        for _ in range(num_genomes):
             key = next(self.genome_indexer)
             g = genome_type(key)
             g.configure_new(genome_config)
@@ -104,10 +108,14 @@ class MctsReproduction(DefaultClassConfig):
         g = config.genome_type(genome.key)
         g.configure_copy(genome, config.genome_config)
         g.parent = genome
-        for _ in range(20):
+        for _ in range(5):
             g.mutate(config.genome_config)
+        for _ in range(5):
+            g.mutate_connection_weights(config.genome_config)
 
-        fitness_function(list(iteritems({genome.key: genome})), config)
+        fitness_function(
+            list(iteritems({g.key: g})), config)
+        g.Q = g.fitness
 
         return g
 
@@ -147,10 +155,57 @@ class MctsReproduction(DefaultClassConfig):
 
         return child
 
-    def expansion(self, state, config):
+    def beam_local_search(self, state, fitness_function, config):
+        pqueue = Q.PriorityQueue()
+        seen_fitnesses = set()
+
+        seen_fitnesses.add(state.fitness)
+
+        best_seen = state
+
+        for _ in range(10):
+            gid = next(self.genome_indexer)
+            new_state = config.genome_type(gid)
+            new_state.configure_copy(state, config.genome_config)
+            new_state.mutate_connection_weights(config.genome_config)
+            fitness_function(
+                list(iteritems({new_state.key: new_state})), config)
+
+            if new_state.fitness not in seen_fitnesses:
+                seen_fitnesses.add(new_state.fitness)
+                pqueue.put((new_state.fitness, new_state))
+
+        for _ in range(50):
+            current = pqueue.get()[1]
+            neighbours = self._beam_get_neighbours(current, config)
+            fitness_function(
+                list(iteritems(neighbours)), config)
+            for _, neighbour in neighbours.items():
+                if neighbour.fitness < best_seen.fitness:
+                    best_seen = neighbour
+                if neighbour.fitness not in seen_fitnesses:
+                    seen_fitnesses.add(neighbour.fitness)
+                    pqueue.put((neighbour.fitness, neighbour))
+
+        best_seen.children = state.children
+        return best_seen
+
+    def _beam_get_neighbours(self, state, config):
+        neighbours = {}
+        for _ in range(10):
+            gid = next(self.genome_indexer)
+            new_state = config.genome_type(gid)
+            new_state.configure_copy(state, config.genome_config)
+            for __ in range(math.floor(random.uniform(1, 4))):
+                new_state.mutate_connection_weights(config.genome_config)
+            neighbours[gid] = new_state
+        return neighbours
+
+    def expansion(self, state, fitness_function, config):
         if state.expanded:
             return
         state.expanded = True
+
         possible_connections, possible_nodes = self.get_possible_actions(
             state, config.genome_config)
 
@@ -163,7 +218,7 @@ class MctsReproduction(DefaultClassConfig):
                 state, node, 'node', config))
 
     def _calc_uct(self, state, c):
-        return (state.Q / state.N) + c*math.sqrt((2*math.log(state.N)) / state.N)
+        return (state.Q / state.N) + (2*c*(math.sqrt((2*math.log(state.N)) / state.N)))
 
     def selection(self, state, c):
         selected = state.children[0]
@@ -183,115 +238,35 @@ class MctsReproduction(DefaultClassConfig):
         # TODO: I don't like this modification of the species and stagnation objects,
         # because it requires internal knowledge of the objects.
 
-        # Filter out stagnated species, collect the set of non-stagnated
-        # species members, and compute their average adjusted fitness.
-        # The average adjusted fitness scheme (normalized to the interval
-        # [0, 1]) allows the use of negative fitness values without
-        # interfering with the shared fitness scheme.
-
-        all_fitnesses = []
-        remaining_species = []
-        for stag_sid, stag_s, stagnant in self.stagnation.update(species, generation):
-            if stagnant:
-                self.reporters.species_stagnant(stag_sid, stag_s)
-            else:
-                all_fitnesses.extend(
-                    m.fitness for m in itervalues(stag_s.members))
-                remaining_species.append(stag_s)
-        # The above comment was not quite what was happening - now getting fitnesses
-        # only from members of non-stagnated species.
-
-        # No species left.
-        if not remaining_species:
-            species.species = {}
-            return {}  # was []
-
-        # Find minimum/maximum fitness across the entire population, for use in
-        # species adjusted fitness computation.
-        min_fitness = min(all_fitnesses)
-        max_fitness = max(all_fitnesses)
-        # Do not allow the fitness range to be zero, as we divide by it below.
-        fitness_range = max(
-            self.reproduction_config.fitness_min_divisor, max_fitness - min_fitness)
-        for afs in remaining_species:
-            # Compute adjusted fitness.
-            msf = mean([m.fitness for m in itervalues(afs.members)])
-            af = (msf - min_fitness) / fitness_range
-            afs.adjusted_fitness = af
-
-        adjusted_fitnesses = [s.adjusted_fitness for s in remaining_species]
-        avg_adjusted_fitness = mean(adjusted_fitnesses)  # type: float
-        self.reporters.info(
-            "Average adjusted fitness: {:.3f}".format(avg_adjusted_fitness))
-
-        # Compute the number of new members for each species in the new generation.
-        previous_sizes = [len(s.members) for s in remaining_species]
-        min_species_size = self.reproduction_config.min_species_size
-        # Isn't the effective min_species_size going to be max(min_species_size,
-        # self.reproduction_config.elitism)? That would probably produce more accurate tracking
-        # of population sizes and relative fitnesses... doing. TODO: document.
-        min_species_size = max(
-            min_species_size, self.reproduction_config.elitism)
-        spawn_amounts = self.compute_spawn(adjusted_fitnesses, previous_sizes,
-                                           pop_size, min_species_size)
+        current_best_seen = None
 
         new_population = {}
-        species.species = {}
-        for spawn, s in zip(spawn_amounts, remaining_species):
-            # If elitism is enabled, each species always at least gets to retain its elites.
-            spawn = max(spawn, self.reproduction_config.elitism)
+        for s in species.species:
+            for _, genome in species.species[s].members.items():
 
-            assert spawn > 0
+                while genome.expanded:
+                    genome = self.beam_local_search(
+                        genome, fitness_function, config)
+                    if current_best_seen == None or current_best_seen.fitness > genome.fitness:
+                        current_best_seen = genome
+                    genome = self.selection(genome, 0.0)
 
-            # Do hillclimb
+                current_parent = genome
 
-            # The species has at least one member for the next generation, so retain it.
-            old_members = list(iteritems(s.members))
-            s.members = {}
-            species.species[s.key] = s
+                if current_parent.parent == None or random.uniform(0, 1) < 0.1:
+                    self.expansion(current_parent, fitness_function, config)
+                else:
+                    current_parent = current_parent.parent
 
-            # Sort members in order of descending fitness.
-            old_members.sort(reverse=True, key=lambda x: x[1].fitness)
+                for _ in range(100):
 
-            # Transfer elites to new generation.
-            if self.reproduction_config.elitism > 0:
-                for i, m in old_members[:self.reproduction_config.elitism]:
-                    new_population[i] = m
-                    spawn -= 1
+                    selected_child = self.selection(current_parent, 0.5)
+                    simulated_child = self.simulate(
+                        selected_child, config, fitness_function)
+                    if current_best_seen == None or current_best_seen.fitness > simulated_child.fitness:
+                        current_best_seen = simulated_child
+                    self.backpropagate(simulated_child)
 
-            if spawn <= 0:
-                continue
+                new_population[genome.key] = genome
 
-            best_individual_id, best_individual = old_members[0]
-
-            # temp
-            current_parent = best_individual
-
-            self.expansion(current_parent, config)
-
-            for _ in range(1000):
-
-                selected_child = self.selection(current_parent, 0.5)
-                simulated_child = self.simulate(
-                    selected_child, config, fitness_function)
-                self.backpropagate(simulated_child)
-
-            best_child = self.selection(current_parent, 0.)
-            self.expansion(best_child, config)
-            best_child = best_child.children[1]
-            new_population[best_child.key] = best_child
-
-            print(best_child.key)
-            return new_population
-
-            while spawn > 0:
-                spawn -= 1
-                gid = next(self.genome_indexer)
-                child = config.genome_type(gid)
-                child.configure_copy(best_individual, config.genome_config)
-                for _ in range(math.floor(random.uniform(2, 10))):
-                    child.mutate(config.genome_config)
-                new_population[gid] = child
-                self.ancestors[gid] = (best_individual_id)
-
-            return new_population
+        return current_best_seen, new_population

@@ -33,7 +33,7 @@ p = neat.Population(config)
 p.add_reporter(neat.StdOutReporter(False))
 
 # Run until a solution is found.
-winner = p.run(eval_genomes)
+winner = p.run(eval_genomes, 200)
 
 # Display the winning genome.
 print('\nBest genome:\n{!s}'.format(winner))
