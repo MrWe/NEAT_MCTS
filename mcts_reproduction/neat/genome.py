@@ -38,7 +38,7 @@ class DefaultGenomeConfig(object):
                         ConfigParameter('conn_delete_prob', float),
                         ConfigParameter('node_add_prob', float),
                         ConfigParameter('node_delete_prob', float),
-                        ConfigParameter('single_structural_mutation', bool, False),
+                        ConfigParameter('single_structural_mutation', bool, True),
                         ConfigParameter('structural_mutation_surer', str, 'default'),
                         ConfigParameter('initial_connection', str, 'unconnected')]
 
@@ -175,9 +175,12 @@ class DefaultGenome(object):
         
         # Q and N value used in monte carlo tree search
         self.Q = 0
-        self.N = 0
-
+        self.N = 1
+        
+        self.parent = None
         self.children = []
+
+        self.expanded = False
 
     def configure_new(self, config):
         """Configure a new genome based on the given configuration."""
@@ -272,7 +275,8 @@ class DefaultGenome(object):
                 self.nodes[key] = ng1.crossover(ng2)
 
     def configure_copy(self, genome, config):
-        assert isinstance(genome.fitness, (int, float))
+        #print(genome.fitness)
+        #assert isinstance(genome.fitness, (int, float))
 
         for key, c in iteritems(genome.connections):
             self.connections[key] = c.copy()
@@ -286,20 +290,21 @@ class DefaultGenome(object):
     def mutate(self, config):
         """ Mutates this genome. """
 
+
         if config.single_structural_mutation:
             div = max(1,(config.node_add_prob + config.node_delete_prob +
                          config.conn_add_prob + config.conn_delete_prob))
             r = random()
             if r < (config.node_add_prob/div):
                 self.mutate_add_node(config)
-            elif r < ((config.node_add_prob + config.node_delete_prob)/div):
-                self.mutate_delete_node(config)
+            #elif r < ((config.node_add_prob + config.node_delete_prob)/div):
+                #self.mutate_delete_node(config)
             elif r < ((config.node_add_prob + config.node_delete_prob +
                        config.conn_add_prob)/div):
                 self.mutate_add_connection(config)
-            elif r < ((config.node_add_prob + config.node_delete_prob +
-                       config.conn_add_prob + config.conn_delete_prob)/div):
-                self.mutate_delete_connection()
+            #elif r < ((config.node_add_prob + config.node_delete_prob +
+                       #config.conn_add_prob + config.conn_delete_prob)/div):
+                #self.mutate_delete_connection()
         else:
             if random() < config.node_add_prob:
                 self.mutate_add_node(config)
@@ -320,6 +325,11 @@ class DefaultGenome(object):
         # Mutate node genes (bias, response, etc.).
         for ng in self.nodes.values():
             ng.mutate(config)
+
+    def mutate_connection_weights(self, config):
+        # Mutate connection genes.
+        for cg in self.connections.values():
+            cg.mutate(config)
 
     def mutate_add_node(self, config):
         if not self.connections:

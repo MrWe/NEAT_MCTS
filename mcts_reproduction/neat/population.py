@@ -23,7 +23,8 @@ class Population(object):
     def __init__(self, config, initial_state=None):
         self.reporters = ReporterSet()
         self.config = config
-        stagnation = config.stagnation_type(config.stagnation_config, self.reporters)
+        stagnation = config.stagnation_type(
+            config.stagnation_config, self.reporters)
         self.reproduction = config.reproduction_type(config.reproduction_config,
                                                      self.reporters,
                                                      stagnation)
@@ -42,7 +43,8 @@ class Population(object):
             self.population = self.reproduction.create_new(config.genome_type,
                                                            config.genome_config,
                                                            config.pop_size)
-            self.species = config.species_set_type(config.species_set_config, self.reporters)
+            self.species = config.species_set_type(
+                config.species_set_config, self.reporters)
             self.generation = 0
             self.species.speciate(config, self.population, self.generation)
         else:
@@ -77,7 +79,8 @@ class Population(object):
         """
 
         if self.config.no_fitness_termination and (n is None):
-            raise RuntimeError("Cannot have no generational limit with no fitness termination")
+            raise RuntimeError(
+                "Cannot have no generational limit with no fitness termination")
 
         k = 0
         while n is None or k < n:
@@ -93,7 +96,8 @@ class Population(object):
             for g in itervalues(self.population):
                 if best is None or g.fitness > best.fitness:
                     best = g
-            self.reporters.post_evaluate(self.config, self.population, self.species, best)
+            self.reporters.post_evaluate(
+                self.config, self.population, self.species, best)
 
             # Track the best genome ever seen.
             if self.best_genome is None or best.fitness > self.best_genome.fitness:
@@ -101,14 +105,16 @@ class Population(object):
 
             if not self.config.no_fitness_termination:
                 # End if the fitness threshold is reached.
-                fv = self.fitness_criterion(g.fitness for g in itervalues(self.population))
+                fv = self.fitness_criterion(
+                    g.fitness for g in itervalues(self.population))
                 if fv >= self.config.fitness_threshold:
-                    self.reporters.found_solution(self.config, self.generation, best)
+                    self.reporters.found_solution(
+                        self.config, self.generation, best)
                     break
 
             # Create the next generation from the current generation.
             self.population = self.reproduction.reproduce(self.config, self.species,
-                                                          self.config.pop_size, self.generation)
+                                                          self.config.pop_size, self.generation, fitness_function)
 
             # Check for complete extinction.
             if not self.species.species:
@@ -124,13 +130,16 @@ class Population(object):
                     raise CompleteExtinctionException()
 
             # Divide the new population into species.
-            self.species.speciate(self.config, self.population, self.generation)
+            self.species.speciate(
+                self.config, self.population, self.generation)
 
-            self.reporters.end_generation(self.config, self.population, self.species)
+            self.reporters.end_generation(
+                self.config, self.population, self.species)
 
             self.generation += 1
 
         if self.config.no_fitness_termination:
-            self.reporters.found_solution(self.config, self.generation, self.best_genome)
+            self.reporters.found_solution(
+                self.config, self.generation, self.best_genome)
 
         return self.best_genome

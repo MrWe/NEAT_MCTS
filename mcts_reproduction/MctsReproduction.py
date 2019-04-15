@@ -100,16 +100,26 @@ class MctsReproduction(DefaultClassConfig):
         return spawn_amounts
 
     # TODO
-    def simulate(self, genome):
-        pass
+    def simulate(self, genome, config, fitness_function):
+        g = config.genome_type(genome.key)
+        g.configure_copy(genome, config.genome_config)
+        g.parent = genome
+        for _ in range(20):
+            g.mutate(config.genome_config)
+
+        fitness_function(list(iteritems({genome.key: genome})), config)
+
+        return g
 
     # propagates q value of a genome up the tree if the q value is better than already found paths.
     def backpropagate(self, genome):
-        q = genome.Q
+        Q = genome.Q
+        genome.N += 1
         while(genome.parent):
             genome = genome.parent
-            if q < genome.Q:
-                genome.Q = q
+            genome.N += 1
+            if Q < genome.Q:
+                genome.Q = Q
 
     # Find possible add/delete_connection and find possible add/delete_node
     def get_possible_actions(self, genome, config):
@@ -126,6 +136,7 @@ class MctsReproduction(DefaultClassConfig):
         gid = next(self.genome_indexer)
         child = config.genome_type(gid)
         child.configure_copy(parent, config.genome_config)
+        child.parent = parent
 
         if action_type == 'connection':
             child.add_connection(config.genome_config,
@@ -136,7 +147,35 @@ class MctsReproduction(DefaultClassConfig):
 
         return child
 
-    def reproduce(self, config, species, pop_size, generation):
+    def expansion(self, state, config):
+        if state.expanded:
+            return
+        state.expanded = True
+        possible_connections, possible_nodes = self.get_possible_actions(
+            state, config.genome_config)
+
+        for connection in possible_connections:
+            state.add_child(self.create_child(
+                state, connection, 'connection', config))
+
+        for node in list(possible_nodes.keys()):
+            state.add_child(self.create_child(
+                state, node, 'node', config))
+
+    def _calc_uct(self, state, c):
+        return (state.Q / state.N) + c*math.sqrt((2*math.log(state.N)) / state.N)
+
+    def selection(self, state, c):
+        selected = state.children[0]
+        selected_uct = self._calc_uct(state.children[0], c)
+        for child in state.children:
+            child_uct = self._calc_uct(child, c)
+            if child_uct < selected_uct:
+                selected = child
+                selected_uct = child_uct
+        return selected
+
+    def reproduce(self, config, species, pop_size, generation, fitness_function):
         """
         Handles creation of genomes, either from scratch or by sexual or
         asexual reproduction from parents.
@@ -225,22 +264,25 @@ class MctsReproduction(DefaultClassConfig):
 
             best_individual_id, best_individual = old_members[0]
 
-            # Transfer best individual
-            new_population[0] = best_individual
-
             # temp
             current_parent = best_individual
 
-            possible_connections, possible_nodes = self.get_possible_actions(
-                best_individual, config.genome_config)
+            self.expansion(current_parent, config)
 
-            for connection in possible_connections:
-                current_parent.add_child(self.create_child(
-                    best_individual, connection, 'connection', config))
+            for _ in range(1000):
 
-            for node in list(possible_nodes.keys()):
-                current_parent.add_child(self.create_child(
-                    best_individual, node, 'node', config))
+                selected_child = self.selection(current_parent, 0.5)
+                simulated_child = self.simulate(
+                    selected_child, config, fitness_function)
+                self.backpropagate(simulated_child)
+
+            best_child = self.selection(current_parent, 0.)
+            self.expansion(best_child, config)
+            best_child = best_child.children[1]
+            new_population[best_child.key] = best_child
+
+            print(best_child.key)
+            return new_population
 
             while spawn > 0:
                 spawn -= 1
