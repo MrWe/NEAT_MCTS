@@ -163,7 +163,7 @@ class MctsReproduction(DefaultClassConfig):
 
         best_seen = state
 
-        for _ in range(10):
+        for _ in range(20):
             gid = next(self.genome_indexer)
             new_state = config.genome_type(gid)
             new_state.configure_copy(state, config.genome_config)
@@ -175,7 +175,7 @@ class MctsReproduction(DefaultClassConfig):
                 seen_fitnesses.add(new_state.fitness)
                 pqueue.put((new_state.fitness, new_state))
 
-        for _ in range(50):
+        for _ in range(100):
             current = pqueue.get()[1]
             neighbours = self._beam_get_neighbours(current, config)
             fitness_function(
@@ -192,7 +192,7 @@ class MctsReproduction(DefaultClassConfig):
 
     def _beam_get_neighbours(self, state, config):
         neighbours = {}
-        for _ in range(10):
+        for _ in range(20):
             gid = next(self.genome_indexer)
             new_state = config.genome_type(gid)
             new_state.configure_copy(state, config.genome_config)
@@ -258,7 +258,7 @@ class MctsReproduction(DefaultClassConfig):
                 else:
                     current_parent = current_parent.parent
 
-                for _ in range(100):
+                for _ in range(50):
 
                     selected_child = self.selection(current_parent, 0.5)
                     simulated_child = self.simulate(

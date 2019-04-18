@@ -100,17 +100,24 @@ class Population(object):
                 self.config, self.population, self.species, best)
 
             # Track the best genome ever seen.
-            if self.best_genome is None or best.fitness > self.best_genome.fitness:
+            if self.best_genome is None or best.fitness < self.best_genome.fitness:
                 self.best_genome = best
 
             if not self.config.no_fitness_termination:
                 # End if the fitness threshold is reached.
-                fv = self.fitness_criterion(
-                    g.fitness for g in itervalues(self.population))
-                if fv >= self.config.fitness_threshold:
-                    self.reporters.found_solution(
-                        self.config, self.generation, best)
-                    break
+                # fv = self.fitness_criterion(
+                #    g.fitness for g in itervalues(self.population))
+                fv = self.best_genome.fitness
+                if self.fitness_criterion == min:
+                    if fv <= self.config.fitness_threshold:
+                        self.reporters.found_solution(
+                            self.config, self.generation, best)
+                        break
+                else:
+                    if fv >= self.config.fitness_threshold:
+                        self.reporters.found_solution(
+                            self.config, self.generation, best)
+                        break
 
             # Create the next generation from the current generation.
             current_best_seen, self.population = self.reproduction.reproduce(self.config, self.species,

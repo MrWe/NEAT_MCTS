@@ -1,11 +1,13 @@
+
 """
 2-input XOR example -- this is most likely the simplest possible example.
 """
 
 from __future__ import print_function
 import sys
+sys.path.append('..')
 import neat
-from MctsReproduction import MctsReproduction
+
 
 # 2-input XOR inputs and expected outputs.
 xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
@@ -14,15 +16,15 @@ xor_outputs = [(0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
-        genome.fitness = 4.0
+        genome.fitness = 0
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         for xi, xo in zip(xor_inputs, xor_outputs):
             output = net.activate(xi)
-            genome.fitness -= (output[0] - xo[0]) ** 2
+            genome.fitness += (output[0] - xo[0]) ** 2
 
 
 # Load configuration.
-config = neat.Config(neat.DefaultGenome, MctsReproduction,
+config = neat.Config(neat.DefaultGenome, neat.MctsReproduction,
                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
                      'config-feedforward')
 

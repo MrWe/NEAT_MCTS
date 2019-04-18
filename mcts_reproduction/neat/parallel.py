@@ -14,13 +14,16 @@ class ParallelEvaluator(object):
         self.num_workers = num_workers
         self.eval_function = eval_function
         self.timeout = timeout
-        self.pool = Pool(num_workers)
+        #self.pool = Pool(num_workers)
 
-    def __del__(self):
-        self.pool.close() # should this be terminate?
-        self.pool.join()
+    #def __del__(self):
+    #    self.pool.close() # should this be terminate?
+    #    self.pool.join()
 
     def evaluate(self, genomes, config):
+        for ignored_genome_id, genome in genomes:
+            genome.fitness =  self.eval_function(genome, config)
+        '''
         jobs = []
         for ignored_genome_id, genome in genomes:
             jobs.append(self.pool.apply_async(self.eval_function, (genome, config)))
@@ -28,3 +31,4 @@ class ParallelEvaluator(object):
         # assign the fitness back to each genome
         for job, (ignored_genome_id, genome) in zip(jobs, genomes):
             genome.fitness = job.get(timeout=self.timeout)
+        '''
