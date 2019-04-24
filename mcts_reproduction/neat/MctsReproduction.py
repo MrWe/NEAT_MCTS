@@ -103,7 +103,6 @@ class MctsReproduction(DefaultClassConfig):
 
         return spawn_amounts
 
-    # TODO
     def simulate(self, genome, config, fitness_function):
         g = config.genome_type(genome.key)
         g.configure_copy(genome, config.genome_config)
@@ -120,14 +119,18 @@ class MctsReproduction(DefaultClassConfig):
         return g
 
     # propagates q value of a genome up the tree if the q value is better than already found paths.
-    def backpropagate(self, genome):
+    def backpropagate(self, genome, fitness_criterion):
         Q = genome.Q
         genome.N += 1
         while(genome.parent):
             genome = genome.parent
             genome.N += 1
-            if Q < genome.Q:
-                genome.Q = Q
+            if fitness_criterion == max:
+                if Q > genome.Q:
+                    genome.Q = Q
+            else:
+                if Q < genome.Q:
+                    genome.Q = Q
 
     # Find possible add/delete_connection and find possible add/delete_node
     def get_possible_actions(self, genome, config):
@@ -163,34 +166,44 @@ class MctsReproduction(DefaultClassConfig):
 
         best_seen = state
 
-        for _ in range(20):
+        for _ in range(200):
             gid = next(self.genome_indexer)
             new_state = config.genome_type(gid)
             new_state.configure_copy(state, config.genome_config)
             new_state.mutate_connection_weights(config.genome_config)
+
             fitness_function(
                 list(iteritems({new_state.key: new_state})), config)
 
             if new_state.fitness not in seen_fitnesses:
                 seen_fitnesses.add(new_state.fitness)
-                pqueue.put((new_state.fitness, new_state))
+                if config.fitness_criterion == max:
+                    pqueue.put((-new_state.fitness, new_state))
+                else:
+                    pqueue.put((new_state.fitness, new_state))
 
-        for _ in range(100):
+        for _ in range(20):
+            if(pqueue.qsize() == 0):
+                break
             current = pqueue.get()[1]
             neighbours = self._beam_get_neighbours(current, config)
             fitness_function(
                 list(iteritems(neighbours)), config)
             for _, neighbour in neighbours.items():
+                
                 if neighbour.fitness < best_seen.fitness:
                     best_seen = neighbour
                 if neighbour.fitness not in seen_fitnesses:
                     seen_fitnesses.add(neighbour.fitness)
-                    pqueue.put((neighbour.fitness, neighbour))
-
+                    if config.fitness_criterion == max:
+                        pqueue.put((-neighbour.fitness, neighbour))
+                    else:
+                        pqueue.put((neighbour.fitness, neighbour))
         best_seen.children = state.children
         return best_seen
 
     def _beam_get_neighbours(self, state, config):
+ 
         neighbours = {}
         for _ in range(20):
             gid = next(self.genome_indexer)
@@ -210,24 +223,35 @@ class MctsReproduction(DefaultClassConfig):
             state, config.genome_config)
 
         for connection in possible_connections:
-            state.add_child(self.create_child(
-                state, connection, 'connection', config))
+            child = self.create_child(
+                state, connection, 'connection', config)
+            fitness_function(
+                list(iteritems({child.key: child})), config)
+            state.add_child(child)
 
         for node in list(possible_nodes.keys()):
-            state.add_child(self.create_child(
-                state, node, 'node', config))
+            child = self.create_child(
+                state, node, 'node', config)
+            fitness_function(
+                list(iteritems({child.key: child})), config)
+            state.add_child(child)
 
     def _calc_uct(self, state, c):
         return (state.Q / state.N) + (2*c*(math.sqrt((2*math.log(state.N)) / state.N)))
 
-    def selection(self, state, c):
+    def selection(self, state, c, fitness_criterion):
         selected = state.children[0]
         selected_uct = self._calc_uct(state.children[0], c)
         for child in state.children:
             child_uct = self._calc_uct(child, c)
-            if child_uct < selected_uct:
-                selected = child
-                selected_uct = child_uct
+            if fitness_criterion == min:
+                if child_uct < selected_uct:
+                    selected = child
+                    selected_uct = child_uct
+            else:
+                if child_uct > selected_uct:
+                    selected = child
+                    selected_uct = child_uct
         return selected
 
     def reproduce(self, config, species, pop_size, generation, fitness_function):
@@ -239,34 +263,52 @@ class MctsReproduction(DefaultClassConfig):
         # because it requires internal knowledge of the objects.
 
         current_best_seen = None
-
+ 
         new_population = {}
         for s in species.species:
             for _, genome in species.species[s].members.items():
+                new_population[genome.key] = genome
 
                 while genome.expanded:
                     genome = self.beam_local_search(
                         genome, fitness_function, config)
-                    if current_best_seen == None or current_best_seen.fitness > genome.fitness:
-                        current_best_seen = genome
-                    genome = self.selection(genome, 0.0)
+                    
+                    if len(genome.children) > 1 and random.uniform(0,1) < 0.1:
+                        fitnesses = []
+                        for child in genome.children:
+                            fitnesses.append(child.fitness)
+
+                        worst_child = fitnesses.index(max(fitnesses)) if config.fitness_criterion == min else fitnesses.index(min(fitnesses)) #Remove revsersed of fitness criterion
+                        del genome.children[worst_child]
+                    
+                    if config.fitness_criterion == max:
+                        if current_best_seen == None or current_best_seen.fitness > genome.fitness:
+                            current_best_seen = genome
+                    else:
+                        if current_best_seen == None or current_best_seen.fitness < genome.fitness:
+                            current_best_seen = genome
+                    genome = self.selection(genome, 0.0, config.fitness_criterion)
 
                 current_parent = genome
 
-                if current_parent.parent == None or random.uniform(0, 1) < 0.1:
+
+                if current_parent.parent == None or random.uniform(0, 1) < 0.01:
                     self.expansion(current_parent, fitness_function, config)
                 else:
                     current_parent = current_parent.parent
 
-                for _ in range(50):
+                for _ in range(100):
 
-                    selected_child = self.selection(current_parent, 0.5)
+                    selected_child = self.selection(current_parent, 0.5, config.fitness_criterion)
                     simulated_child = self.simulate(
                         selected_child, config, fitness_function)
-                    if current_best_seen == None or current_best_seen.fitness > simulated_child.fitness:
-                        current_best_seen = simulated_child
-                    self.backpropagate(simulated_child)
+                    if config.fitness_criterion == max:
+                        if current_best_seen == None or current_best_seen.fitness > simulated_child.fitness:
+                            current_best_seen = simulated_child
+                    else:
+                        if current_best_seen == None or current_best_seen.fitness < simulated_child.fitness:
+                            current_best_seen = simulated_child
+                    self.backpropagate(simulated_child, config.fitness_criterion)
 
-                new_population[genome.key] = genome
 
         return current_best_seen, new_population

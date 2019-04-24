@@ -333,6 +333,9 @@ class DefaultGenome(object):
         for cg in self.connections.values():
             cg.mutate(config)
 
+        for ng in self.nodes.values():
+            ng.mutate(config)
+
     def mutate_add_node(self, config):
         if not self.connections:
             if config.check_structural_mutation_surer():

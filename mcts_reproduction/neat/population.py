@@ -59,6 +59,7 @@ class Population(object):
         self.reporters.remove(reporter)
 
     def run(self, fitness_function, n=None):
+        best_seen_ever = None
         """
         Runs NEAT's genetic algorithm for at most n generations.  If n
         is None, run until solution is found or extinction occurs.
@@ -94,14 +95,22 @@ class Population(object):
             # Gather and report statistics.
             best = None
             for g in itervalues(self.population):
-                if best is None or g.fitness > best.fitness:
-                    best = g
+                if self.fitness_criterion == min:
+                    if best is None or g.fitness < best.fitness:
+                        best = g
+                else:
+                    if best is None or g.fitness > best.fitness:
+                        best = g
             self.reporters.post_evaluate(
                 self.config, self.population, self.species, best)
 
             # Track the best genome ever seen.
-            if self.best_genome is None or best.fitness < self.best_genome.fitness:
-                self.best_genome = best
+            if self.fitness_criterion == min:
+                if self.best_genome is None or best.fitness < self.best_genome.fitness:
+                    self.best_genome = best
+            else:
+                if self.best_genome is None or best.fitness > self.best_genome.fitness:
+                    self.best_genome = best
 
             if not self.config.no_fitness_termination:
                 # End if the fitness threshold is reached.
@@ -123,22 +132,28 @@ class Population(object):
             current_best_seen, self.population = self.reproduction.reproduce(self.config, self.species,
                                                                              self.config.pop_size, self.generation, fitness_function)
 
-            if self.best_genome is None or self.best_genome.fitness > current_best_seen.fitness:
-                self.best_genome = current_best_seen
-            '''
-            # Check for complete extinction.
-            if not self.species.species:
-                self.reporters.complete_extinction()
 
-                # If requested by the user, create a completely new population,
-                # otherwise raise an exception.
-                if self.config.reset_on_extinction:
-                    self.population = self.reproduction.create_new(self.config.genome_type,
-                                                                   self.config.genome_config,
-                                                                   self.config.pop_size)
-                else:
-                    raise CompleteExtinctionException()
-            '''
+            print(self.best_genome.key, self.best_genome.fitness, self.best_genome.size())
+            print(current_best_seen.key, current_best_seen.fitness, current_best_seen.size())
+
+            if self.fitness_criterion == min:
+                if self.best_genome is None or self.best_genome.fitness > current_best_seen.fitness:
+                    self.best_genome = current_best_seen
+            else:
+                if self.best_genome is None or self.best_genome.fitness < current_best_seen.fitness:
+                    self.best_genome = current_best_seen
+
+            fv = self.best_genome.fitness
+            if self.fitness_criterion == min:
+                if fv <= self.config.fitness_threshold:
+                    self.reporters.found_solution(
+                        self.config, self.generation, best)
+                    break
+            else:
+                if fv >= self.config.fitness_threshold:
+                    self.reporters.found_solution(
+                        self.config, self.generation, best)
+                    break
 
             # Divide the new population into species.
             self.species.speciate(
