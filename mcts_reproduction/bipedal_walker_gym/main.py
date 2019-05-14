@@ -10,23 +10,25 @@ sys.path.append('..')
 import neat
 
 
-env = gym.make("CartPole-v0")
+env = gym.make("BipedalWalker-v2")
 
 def eval_genomes(genomes, config):
     observation = env.reset()
     for genome_id, genome in genomes:
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
-        genome.fitness = 0
+      observation = env.reset()
+      net = neat.nn.FeedForwardNetwork.create(genome, config)
+      genome.fitness = 0
 
-        for _ in range(500):
-            action = net.activate(observation)[0]
-            action = 1 if action > 0.5 else 0
-            observation, reward, done, info = env.step(action)
-            genome.fitness += reward
+      for _ in range(100):
+          action = net.activate(observation)
+          observation, reward, done, info = env.step(action)
+          genome.fitness += reward
 
-            if done:
-                observation = env.reset()
-                break
+          if done:
+            observation = env.reset()
+            break
+      
+      
 
 
 # Load configuration.
@@ -48,14 +50,15 @@ print('\nBest genome:\n{!s}'.format(winner))
 
 # Show output of the most fit genome against training data.
 net = neat.nn.FeedForwardNetwork.create(winner, config)
-observation = env.reset()
-for _ in range(500):
-  env.render()
-  action = net.activate(observation)[0]
-  action = 1 if action > 0.5 else 0
-  observation, reward, done, info = env.step(action)
+for __ in range(10):
+  observation = env.reset()
+  for _ in range(100):
+    env.render()
+    action = net.activate(observation)
+    observation, reward, done, info = env.step(action)
 
-  if done:
-    observation = env.reset()
-    break
+    if done:
+      observation = env.reset()
+      break
+env.reset()
 env.close()

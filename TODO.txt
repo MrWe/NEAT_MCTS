@@ -7,4 +7,16 @@
 4. Backpropagation
 
 
-5-> Only do 1-4 for individuals of each species
+
+Ideas for local search for nodes in tree: 
+    - Beam search / Hill climb for each node in tree -> Do for every genome in while(not genome.extended)?
+    - Run NEAT for each node -> create multiple copies of same node, run NEAT on weights only
+
+How to prune MCTS tree?
+
+
+
+
+Weights are evolved through beam search now, how to do evolution on it?
+
+-> 

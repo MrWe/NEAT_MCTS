@@ -4,6 +4,9 @@ from __future__ import print_function
 from neat.reporting import ReporterSet
 from neat.math_util import mean
 from neat.six_util import iteritems, itervalues
+from neat.globalFitnesses import GlobalFitnesses
+import time
+
 
 
 class CompleteExtinctionException(Exception):
@@ -23,6 +26,7 @@ class Population(object):
     def __init__(self, config, initial_state=None):
         self.reporters = ReporterSet()
         self.config = config
+        self.global_fitnesses = GlobalFitnesses()
         stagnation = config.stagnation_type(
             config.stagnation_config, self.reporters)
         self.reproduction = config.reproduction_type(config.reproduction_config,
@@ -59,7 +63,6 @@ class Population(object):
         self.reporters.remove(reporter)
 
     def run(self, fitness_function, n=None):
-        best_seen_ever = None
         """
         Runs NEAT's genetic algorithm for at most n generations.  If n
         is None, run until solution is found or extinction occurs.
@@ -79,6 +82,9 @@ class Population(object):
         or the configuration object.
         """
 
+        start_time = time.time()
+
+
         if self.config.no_fitness_termination and (n is None):
             raise RuntimeError(
                 "Cannot have no generational limit with no fitness termination")
@@ -87,15 +93,21 @@ class Population(object):
         while n is None or k < n:
             k += 1
 
+            if k % 20 == 0:
+                self.global_fitnesses.save()
+                self.global_fitnesses.plot_graph()
+
             self.reporters.start_generation(self.generation)
 
             # Evaluate all genomes using the user-provided function.
             fitness_function(list(iteritems(self.population)), self.config)
+            
 
+            '''
             # Gather and report statistics.
             best = None
             for g in itervalues(self.population):
-                if self.fitness_criterion == min:
+                if self.fitness_criterion == "min":
                     if best is None or g.fitness < best.fitness:
                         best = g
                 else:
@@ -103,56 +115,44 @@ class Population(object):
                         best = g
             self.reporters.post_evaluate(
                 self.config, self.population, self.species, best)
-
+            '''
+            '''
             # Track the best genome ever seen.
-            if self.fitness_criterion == min:
+            if self.fitness_criterion == "min":
                 if self.best_genome is None or best.fitness < self.best_genome.fitness:
                     self.best_genome = best
             else:
                 if self.best_genome is None or best.fitness > self.best_genome.fitness:
                     self.best_genome = best
 
-            if not self.config.no_fitness_termination:
-                # End if the fitness threshold is reached.
-                # fv = self.fitness_criterion(
-                #    g.fitness for g in itervalues(self.population))
-                fv = self.best_genome.fitness
-                if self.fitness_criterion == min:
-                    if fv <= self.config.fitness_threshold:
-                        self.reporters.found_solution(
-                            self.config, self.generation, best)
-                        break
-                else:
-                    if fv >= self.config.fitness_threshold:
-                        self.reporters.found_solution(
-                            self.config, self.generation, best)
-                        break
-
+            '''
             # Create the next generation from the current generation.
             current_best_seen, self.population = self.reproduction.reproduce(self.config, self.species,
                                                                              self.config.pop_size, self.generation, fitness_function)
+            
+          
 
-
-            print(self.best_genome.key, self.best_genome.fitness, self.best_genome.size())
-            print(current_best_seen.key, current_best_seen.fitness, current_best_seen.size())
-
-            if self.fitness_criterion == min:
-                if self.best_genome is None or self.best_genome.fitness > current_best_seen.fitness:
+            if self.fitness_criterion == "min":
+                if self.best_genome is None or current_best_seen.fitness < self.best_genome.fitness:
                     self.best_genome = current_best_seen
             else:
-                if self.best_genome is None or self.best_genome.fitness < current_best_seen.fitness:
+                if self.best_genome is None or current_best_seen.fitness > self.best_genome.fitness:
                     self.best_genome = current_best_seen
+            print("--- %s seconds ---" % (time.time() - start_time))
+            print(self.best_genome.key, self.best_genome.fitness, self.best_genome.size())
+            print(current_best_seen.key, current_best_seen.fitness, current_best_seen.size())
+            self.global_fitnesses.add_fitness(self.best_genome.fitness)
 
             fv = self.best_genome.fitness
-            if self.fitness_criterion == min:
+            if self.fitness_criterion == "min":
                 if fv <= self.config.fitness_threshold:
                     self.reporters.found_solution(
-                        self.config, self.generation, best)
+                        self.config, self.generation, self.best_genome)
                     break
             else:
                 if fv >= self.config.fitness_threshold:
                     self.reporters.found_solution(
-                        self.config, self.generation, best)
+                        self.config, self.generation, self.best_genome)
                     break
 
             # Divide the new population into species.
@@ -167,5 +167,6 @@ class Population(object):
         if self.config.no_fitness_termination:
             self.reporters.found_solution(
                 self.config, self.generation, self.best_genome)
-
+        print("--- %s seconds ---" % (time.time() - start_time))
+        print(self.global_fitnesses.get_fitnesses())
         return self.best_genome

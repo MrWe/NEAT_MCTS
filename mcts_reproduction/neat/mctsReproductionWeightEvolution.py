@@ -24,7 +24,109 @@ from neat.six_util import iteritems, itervalues
 # to become "cautious" and only make very slow progress.
 
 
-class MctsReproduction(DefaultClassConfig):
+
+#Evolution for weights only, not topology
+class LocalSearchPopulation:
+    def __init__(self, root, population_size, config, genome_indexer, fitness_function):
+        self.root = root
+        self.best_found_individual = root
+        self.population_size = population_size
+        self.config = config
+        self.genome_indexer = genome_indexer
+        self.fitness_function = fitness_function
+        self.population = self.init_population()
+        self.elitism = round(self.population_size/15)
+        self.epochs = 5
+
+    def init_population(self):
+        population = {}
+        for _ in range(self.population_size-1):
+            gid = next(self.genome_indexer)
+            new_state = self.config.genome_type(gid)
+            new_state.configure_copy(self.root, self.config.genome_config)
+            new_state.mutate_connection_weights(self.config.genome_config)
+
+            population[gid] = new_state
+        
+        self.fitness_function(list(iteritems(population)), self.config)
+
+        return population
+
+    def run(self):
+        for _ in range(self.epochs):
+            next_population = {}
+            selected = self.selection(self.population)
+
+            #Transfer elites
+            for n in range(self.elitism):
+                next_population[selected[n].key] = selected[n]
+            
+
+            while len(next_population.items()) < self.population_size:
+                p1 = self.weighted_choice(selected)
+                p2 = self.weighted_choice(selected)
+                
+                gid = next(self.genome_indexer)
+                child = self.config.genome_type(gid)
+                child.configure_crossover(
+                    p1, p2, self.config.genome_config)
+                if random.uniform(0,1) < 0.5:
+                    child.mutate_connection_weights(self.config.genome_config)
+
+                next_population[gid] = child
+            
+            self.fitness_function(list(iteritems(next_population)), self.config)
+
+            for key, item in next_population.items():
+                if item is None or self.best_found_individual is None:
+                    continue
+                if self.config.fitness_criterion == "max":
+                    if item.fitness > self.best_found_individual.fitness:
+                        self.best_found_individual = item
+                else:
+                    if item.fitness < self.best_found_individual.fitness:
+                        self.best_found_individual = item
+
+            self.population = next_population
+        
+
+
+    def weighted_choice(self, choices):
+        for choice in choices:
+            if random.uniform(0,1) > 0.8:
+                return choice
+        return choices[len(choices)-1]
+
+    def selection(self, population):
+        selected = []
+
+        pqueue = Q.PriorityQueue()
+        seen_fitnesses = set()
+
+        for _, value in population.items():
+            if value.fitness not in seen_fitnesses:
+                seen_fitnesses.add(value.fitness)
+
+                if self.config.fitness_criterion == "max":
+                    pqueue.put((-value.fitness, value))
+                else:
+                    pqueue.put((value.fitness, value))
+
+        
+        for _ in range(math.floor(len(population.items())/2)):
+            try:
+                selected.append(pqueue.get(False)[1])
+            except:
+                break
+
+        return selected
+
+        
+    
+
+        
+
+class mctsReproductionWeightEvolution(DefaultClassConfig):
     """
     Implements the default NEAT-python reproduction scheme:
     explicit fitness sharing with fixed-time species stagnation.
@@ -157,70 +259,21 @@ class MctsReproduction(DefaultClassConfig):
 
         return child
 
-    def beam_local_search(self, state, fitness_function, config):
-        pqueue = Q.PriorityQueue()
-        seen_fitnesses = set()
-
-        seen_fitnesses.add(state.fitness)
-
-        best_seen = state
-
-        for _ in range(5):
-            gid = next(self.genome_indexer)
-            new_state = config.genome_type(gid)
-            new_state.configure_copy(state, config.genome_config)
-            new_state.mutate_connection_weights(config.genome_config)
-
-            fitness_function(
-                list(iteritems({new_state.key: new_state})), config)
-
-            if new_state.fitness not in seen_fitnesses:
-                seen_fitnesses.add(new_state.fitness)
-                if config.fitness_criterion == "max":
-                    pqueue.put((-new_state.fitness, new_state))
-                else:
-                    pqueue.put((new_state.fitness, new_state))
-
-        for _ in range(5):
-            if(pqueue.qsize() == 0):
-                break
-            current = pqueue.get(False)[1]
-            neighbours = self._beam_get_neighbours(current, config)
-            fitness_function(
-                list(iteritems(neighbours)), config)
-            for _, neighbour in neighbours.items():
-                
-                if neighbour.fitness < best_seen.fitness:
-                    best_seen = neighbour
-                if neighbour.fitness not in seen_fitnesses:
-                    seen_fitnesses.add(neighbour.fitness)
-                    if config.fitness_criterion == "max":
-                        pqueue.put((-neighbour.fitness, neighbour))
-                    else:
-                        pqueue.put((neighbour.fitness, neighbour))
-        best_seen.children = state.children
-        best_seen.expanded = state.expanded
-        best_seen.parent = state.parent
-        best_seen.N = state.N
-        best_seen.Q = state.Q
-        best_seen.key = state.key
-        return best_seen
-
-    def _beam_get_neighbours(self, state, config):
- 
-        neighbours = {}
-        for _ in range(5):
-            gid = next(self.genome_indexer)
-            new_state = config.genome_type(gid)
-            new_state.configure_copy(state, config.genome_config)
-            for __ in range(math.floor(random.uniform(1, 4))):
-                new_state.mutate_connection_weights(config.genome_config)
-            neighbours[gid] = new_state
-        return neighbours
+    def local_search(self, state, fitness_function, config):
+        pop = LocalSearchPopulation(state, 20, config, self.genome_indexer, fitness_function)
+        pop.run()
+        best_found = pop.best_found_individual
+        best_found.children = state.children
+        best_found.expanded = state.expanded
+        best_found.parent = state.parent
+        best_found.N = state.N
+        best_found.Q = state.Q
+        best_found.key = state.key
+        
+        return best_found
 
     def expansion(self, state, fitness_function, config):
-        if state.expanded:
-            return
+
         state.expanded = True
 
         possible_connections, possible_nodes = self.get_possible_actions(
@@ -241,23 +294,19 @@ class MctsReproduction(DefaultClassConfig):
             state.add_child(child)
 
     def _calc_uct(self, state, c):
-        if state.parent:
-            parentN = state.parent.N
-        else:
-            parentN = 1
-        return (state.Q / state.N) + (2*c*(math.sqrt((2*math.log(state.N)) / parentN)))
+        return (state.Q / state.N) + (2*c*(math.sqrt((2*math.log(state.N)) / state.N)))
 
     def selection(self, state, c, fitness_criterion):
         selected = state.children[0]
         selected_uct = self._calc_uct(state.children[0], c)
         for child in state.children:
             child_uct = self._calc_uct(child, c)
-            if fitness_criterion == "min":
-                if child_uct < selected_uct:
+            if fitness_criterion == "max":
+                if child_uct > selected_uct:
                     selected = child
                     selected_uct = child_uct
             else:
-                if child_uct > selected_uct:
+                if child_uct < selected_uct:
                     selected = child
                     selected_uct = child_uct
         return selected
@@ -267,60 +316,67 @@ class MctsReproduction(DefaultClassConfig):
         Handles creation of genomes, either from scratch or by sexual or
         asexual reproduction from parents.
         """
-        # TODO: I don't like this modification of the species and stagnation objects,
-        # because it requires internal knowledge of the objects.
 
+
+        index = 0
         current_best_seen = None
-
         new_population = {}
         for s in species.species:
-            #for _, genome in species.species[s].members.items():
-            first = list(species.species[s].members.keys())[0]
-            genome = species.species[s].members[first]
-            new_population[genome.key] = genome
-            
+                #for _, genome in species.species[s].members.items():
+                first = list(species.species[s].members.keys())[0]
+                genome = species.species[s].members[first]
+                new_population[genome.key] = genome
 
-            while genome.expanded:
-                if random.uniform(0,1) < 0.5:
-                    genome = self.beam_local_search(
-                        genome, fitness_function, config)
-                
-                if len(genome.children) > 1 and random.uniform(0,1) < 1:
-                    fitnesses = []
-                    for child in genome.children:
-                        fitnesses.append(child.Q)
-                    for i in range(math.floor(len(fitnesses)/3)):
-                        worst_child = fitnesses.index(max(fitnesses)) if config.fitness_criterion == "min" else fitnesses.index(min(fitnesses)) #Remove revsersed of fitness criterion
-                        del genome.children[worst_child]
-                        del fitnesses[worst_child]
-                
-                if config.fitness_criterion == "max":
-                    if current_best_seen == None or current_best_seen.fitness < genome.fitness:
-                        current_best_seen = genome
-                else:
-                    if current_best_seen == None or current_best_seen.fitness > genome.fitness:
-                        current_best_seen = genome
-                genome = self.selection(genome, 0.0, config.fitness_criterion)
-            current_parent = genome
+                if genome.parent == None and len(genome.children) == 0:
+                    self.expansion(genome, fitness_function, config)
 
 
-            if (current_parent.parent == None or random.uniform(0, 1) < 1) and len(current_parent.children) == 0:
-                self.expansion(current_parent, fitness_function, config)
+                while genome.expanded:
+                    print(len(genome.children))
+                    index += 1
+                    print(index)
+                    if random.uniform(0,1) < 0.5:
+                        genome = self.local_search(
+                            genome, fitness_function, config)
+                    
+                    if len(genome.children) > 1 and random.uniform(0,1) < 1:
+                        fitnesses = []
+                        for child in genome.children:
+                            fitnesses.append(child.Q)
+                        for i in range(math.floor(len(fitnesses)/2)):
+                            worst_child = fitnesses.index(max(fitnesses)) if config.fitness_criterion == "min" else fitnesses.index(min(fitnesses)) #Remove revsersed of fitness criterion
+                            del genome.children[worst_child]
+                            del fitnesses[worst_child]
+                    
+                    if config.fitness_criterion == "max":
+                        if current_best_seen == None or current_best_seen.fitness < genome.fitness:
+                            current_best_seen = genome
+                    else:
+                        if current_best_seen == None or current_best_seen.fitness > genome.fitness:
+                            current_best_seen = genome
+
+                    genome = self.selection(genome, 0.0, config.fitness_criterion)
+                    
+                    
+                current_parent = genome
+
+              
+
+                if (current_parent.parent == None or random.uniform(0, 1) < 1) and len(current_parent.children) == 0:
+                    self.expansion(current_parent, fitness_function, config)
 
 
+                for _ in range(20):
+                    selected_child = self.selection(current_parent, 0.5, config.fitness_criterion)
+                    simulated_child = self.simulate(
+                        selected_child, config, fitness_function)
 
-            for _ in range(100):
-
-                selected_child = self.selection(current_parent, 0.5, config.fitness_criterion)
-                simulated_child = self.simulate(
-                    selected_child, config, fitness_function)
-                if config.fitness_criterion == "max":
-                    if current_best_seen == None or current_best_seen.fitness < simulated_child.fitness:
-                        current_best_seen = simulated_child
-                else:
-                    if current_best_seen == None or current_best_seen.fitness > simulated_child.fitness:
-                        current_best_seen = simulated_child
-                self.backpropagate(simulated_child, config.fitness_criterion)
-
+                    if config.fitness_criterion == "max":
+                        if current_best_seen == None or current_best_seen.fitness < simulated_child.fitness:
+                            current_best_seen = simulated_child
+                    else:
+                        if current_best_seen == None or current_best_seen.fitness > simulated_child.fitness:
+                            current_best_seen = simulated_child
+                    self.backpropagate(simulated_child, config.fitness_criterion)
 
         return current_best_seen, new_population

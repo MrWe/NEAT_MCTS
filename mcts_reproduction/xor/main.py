@@ -5,26 +5,30 @@
 
 from __future__ import print_function
 import sys
+import torch
 sys.path.append('..')
 import neat
+from pytorch_neat.cppn import create_cppn
 
 
 # 2-input XOR inputs and expected outputs.
-xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+xor_inputs = [(torch.Tensor([0.0]), torch.Tensor([0.0])), (torch.Tensor([0.0]), torch.Tensor([1.0])), (torch.Tensor([1.0]), torch.Tensor([0.0])), (torch.Tensor([1.0]), torch.Tensor([1.0]))]
 xor_outputs = [(0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = 0
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        net = create_cppn(genome, config, ["In1","In2"], ["Out"])[0]
+        #net = neat.nn.FeedForwardNetwork.create(genome, config)
         for xi, xo in zip(xor_inputs, xor_outputs):
-            output = net.activate(xi)
-            genome.fitness += (output[0] - xo[0]) ** 2
+
+            output = net.activate([xi[0], xi[1]], shape=(1,1)).item()
+            genome.fitness += (output - xo[0]) ** 2
 
 
 # Load configuration.
-config = neat.Config(neat.DefaultGenome, neat.MctsReproduction,
+config = neat.Config(neat.DefaultGenome, neat.mctsReproductionWeightEvolution,
                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
                      'config-feedforward')
 

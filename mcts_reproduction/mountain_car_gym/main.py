@@ -6,11 +6,12 @@
 from __future__ import print_function
 import gym
 import sys
+from math import inf
 sys.path.append('..')
 import neat
 
 
-env = gym.make("Pendulum-v0")
+env = gym.make("MountainCar-v0")
 
 def eval_genomes(genomes, config):
     observation = env.reset()
@@ -18,14 +19,23 @@ def eval_genomes(genomes, config):
       observation = env.reset()
       net = neat.nn.FeedForwardNetwork.create(genome, config)
       genome.fitness = 0
-      for __ in range(2):
-        for _ in range(100):
-            action = net.activate(observation)[0]
-            action *= 2
-            observation, reward, done, info = env.step([action])
-            genome.fitness += reward
+      max_height_reached = -inf
+      max_vel_reached = -inf
 
-
+      for _ in range(200):
+        actions = net.activate(observation)
+        action = actions.index(max(actions))
+        observation, reward, done, info = env.step(action)
+        if observation[0] > 0.5:
+          genome.fitness = 1000
+        if done:
+          observation = env.reset()
+          break
+        genome.fitness += reward
+        max_height_reached = observation[0] if observation[0] > max_height_reached else max_height_reached
+        max_vel_reached = observation[1] if observation[1] > max_vel_reached else max_vel_reached
+      genome.fitness +=  (1 + abs(max_height_reached)) ** 2
+      genome.fitness +=  (1 + abs(max_vel_reached)) ** 2
 
 # Load configuration.
 config = neat.Config(neat.DefaultGenome, neat.mctsReproductionWeightEvolution,
@@ -39,7 +49,7 @@ p = neat.Population(config)
 p.add_reporter(neat.StdOutReporter(False))
 
 # Run until a solution is found.
-winner = p.run(eval_genomes, 200)
+winner = p.run(eval_genomes, 100)
 
 # Display the winning genome.
 print('\nBest genome:\n{!s}'.format(winner))
@@ -48,14 +58,15 @@ print('\nBest genome:\n{!s}'.format(winner))
 net = neat.nn.FeedForwardNetwork.create(winner, config)
 for __ in range(10):
   observation = env.reset()
-  for _ in range(100):
+  for _ in range(200):
     env.render()
-    action = net.activate(observation)[0]
-    action *= 2
-    observation, reward, done, info = env.step([action])
+    actions = net.activate(observation)
+    action = actions.index(max(actions))
+    observation, reward, done, info = env.step(action)
 
-  #if done:
-  #  observation = env.reset()
-  #  break
+    if done:
+      observation = env.reset()
+      print("Done")
+      break
 env.reset()
 env.close()

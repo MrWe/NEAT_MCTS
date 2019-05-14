@@ -9,6 +9,7 @@ from neat.population import Population, CompleteExtinctionException
 from neat.genome import DefaultGenome
 from neat.reproduction import DefaultReproduction
 from neat.MctsReproduction import MctsReproduction
+from neat.mctsReproductionWeightEvolution import mctsReproductionWeightEvolution
 from neat.stagnation import DefaultStagnation
 from neat.reporting import StdOutReporter
 from neat.species import DefaultSpeciesSet

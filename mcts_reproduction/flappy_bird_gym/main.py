@@ -10,7 +10,7 @@ sys.path.append('..')
 import neat
 
 
-env = gym.make("CartPole-v0")
+env = gym.make("CarRacing-v0")
 
 def eval_genomes(genomes, config):
     observation = env.reset()
