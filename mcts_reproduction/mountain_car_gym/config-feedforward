@@ -75,6 +75,14 @@ compatibility_threshold = 3.0
 species_fitness_func = max
 max_stagnation  = 20
 
-[mctsReproductionWeightEvolution]
-elitism            = 2
+[MctsReproductionHill]
+elitism            = 10
+survival_threshold = 0.2
+
+[MctsReproductionWeightEvolution]
+elitism            = 10
+survival_threshold = 0.2
+
+[MctsReproductionWeightEvolutionPartial]
+elitism            = 10
 survival_threshold = 0.2

@@ -24,7 +24,7 @@ from neat.six_util import iteritems, itervalues
 # to become "cautious" and only make very slow progress.
 
 
-class MctsReproduction(DefaultClassConfig):
+class MctsReproductionHill(DefaultClassConfig):
     """
     Implements the default NEAT-python reproduction scheme:
     explicit fitness sharing with fixed-time species stagnation.

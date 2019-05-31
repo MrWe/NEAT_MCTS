@@ -35,8 +35,7 @@ class LocalSearchPopulation:
         self.genome_indexer = genome_indexer
         self.fitness_function = fitness_function
         self.population = self.init_population()
-        self.elitism = round(self.population_size/15)
-        self.epochs = 5
+        self.elitism = 4
 
     def init_population(self):
         population = {}
@@ -52,42 +51,42 @@ class LocalSearchPopulation:
 
         return population
 
-    def run(self):
-        for _ in range(self.epochs):
-            next_population = {}
-            selected = self.selection(self.population)
+    def step(self):
+        
+        next_population = {}
+        selected = self.selection(self.population)
 
-            #Transfer elites
-            for n in range(self.elitism):
-                next_population[selected[n].key] = selected[n]
+        #Transfer elites
+        for n in range(min(self.elitism, len(selected))):
+            next_population[selected[n].key] = selected[n]
+        
+
+        while len(next_population.items()) < self.population_size:
+            p1 = self.weighted_choice(selected)
+            p2 = self.weighted_choice(selected)
             
+            gid = next(self.genome_indexer)
+            child = self.config.genome_type(gid)
+            child.configure_crossover(
+                p1, p2, self.config.genome_config)
+            if random.uniform(0,1) < 0.5:
+                child.mutate_connection_weights(self.config.genome_config)
 
-            while len(next_population.items()) < self.population_size:
-                p1 = self.weighted_choice(selected)
-                p2 = self.weighted_choice(selected)
-                
-                gid = next(self.genome_indexer)
-                child = self.config.genome_type(gid)
-                child.configure_crossover(
-                    p1, p2, self.config.genome_config)
-                if random.uniform(0,1) < 0.5:
-                    child.mutate_connection_weights(self.config.genome_config)
+            next_population[gid] = child
+        
+        self.fitness_function(list(iteritems(next_population)), self.config)
 
-                next_population[gid] = child
-            
-            self.fitness_function(list(iteritems(next_population)), self.config)
+        for key, item in next_population.items():
+            if item is None or self.best_found_individual is None:
+                continue
+            if self.config.fitness_criterion == "max":
+                if item.fitness > self.best_found_individual.fitness:
+                    self.best_found_individual = item
+            else:
+                if item.fitness < self.best_found_individual.fitness:
+                    self.best_found_individual = item
 
-            for key, item in next_population.items():
-                if item is None or self.best_found_individual is None:
-                    continue
-                if self.config.fitness_criterion == "max":
-                    if item.fitness > self.best_found_individual.fitness:
-                        self.best_found_individual = item
-                else:
-                    if item.fitness < self.best_found_individual.fitness:
-                        self.best_found_individual = item
-
-            self.population = next_population
+        self.population = next_population
         
 
 
@@ -126,7 +125,7 @@ class LocalSearchPopulation:
 
         
 
-class MctsReproductionWeightEvolution(DefaultClassConfig):
+class MctsReproductionWeightEvolutionPartial(DefaultClassConfig):
     """
     Implements the default NEAT-python reproduction scheme:
     explicit fitness sharing with fixed-time species stagnation.
@@ -260,17 +259,21 @@ class MctsReproductionWeightEvolution(DefaultClassConfig):
         return child
 
     def local_search(self, state, fitness_function, config):
-        pop = LocalSearchPopulation(state, 20, config, self.genome_indexer, fitness_function)
-        pop.run()
-        best_found = pop.best_found_individual
-        best_found.children = state.children
-        best_found.expanded = state.expanded
-        best_found.parent = state.parent
-        best_found.N = state.N
-        best_found.Q = state.Q
-        best_found.key = state.key
-        
-        return best_found
+        if not hasattr(state, 'localSearch'):
+            state.localSearch = LocalSearchPopulation(state, 20, config, self.genome_indexer, fitness_function)
+        state.localSearch.step()
+        best_found = state.localSearch.best_found_individual
+        if best_found.fitness > state.fitness:
+            best_found.children = state.children
+            best_found.expanded = state.expanded
+            best_found.parent = state.parent
+            best_found.N = state.N
+            best_found.Q = state.Q
+            #best_found.key = state.key
+            best_found.localSearch = state.localSearch
+            
+            return best_found
+        return state
 
     def expansion(self, state, fitness_function, config):
 
@@ -332,9 +335,9 @@ class MctsReproductionWeightEvolution(DefaultClassConfig):
 
 
                 while genome.expanded:
-                    print(len(genome.children))
-                    index += 1
-                    print(index)
+                    #print(len(genome.children))
+                    #index += 1
+                    #print(index)
                     if random.uniform(0,1) < 0.5:
                         genome = self.local_search(
                             genome, fitness_function, config)
@@ -343,7 +346,7 @@ class MctsReproductionWeightEvolution(DefaultClassConfig):
                         fitnesses = []
                         for child in genome.children:
                             fitnesses.append(child.Q)
-                        for i in range(math.floor(len(fitnesses)/2)):
+                        for i in range(math.floor(len(fitnesses)/5)):
                             worst_child = fitnesses.index(max(fitnesses)) if config.fitness_criterion == "min" else fitnesses.index(min(fitnesses)) #Remove revsersed of fitness criterion
                             del genome.children[worst_child]
                             del fitnesses[worst_child]

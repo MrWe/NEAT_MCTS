@@ -21,9 +21,8 @@ def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
       worst_found_fitness = inf
       net = neat.nn.FeedForwardNetwork.create(genome, config)
-      for __ in range(10):
+      for __ in range(5):
         observation = env.reset()
-
         curr_fitness = 0
         
         for _ in range(1000):
@@ -42,7 +41,7 @@ def eval_genomes(genomes, config):
 
 
 # Load configuration.
-config = neat.Config(neat.DefaultGenome, neat.mctsReproductionWeightEvolution,
+config = neat.Config(neat.DefaultGenome, neat.MctsReproductionWeightEvolutionPartial,
                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
                      'config-feedforward')
 

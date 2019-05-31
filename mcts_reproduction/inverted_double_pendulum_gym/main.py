@@ -26,23 +26,23 @@ def eval_genomes(genomes, config):
             genome.fitness += reward
 
 
+for n in range(20):
+  # Load configuration.
+  config = neat.Config(neat.DefaultGenome, neat.MctsReproductionWeightEvolutionPartial,
+                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                      'config-feedforward')
 
-# Load configuration.
-config = neat.Config(neat.DefaultGenome, neat.mctsReproductionWeightEvolution,
-                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                     'config-feedforward')
+  # Create the population, which is the top-level object for a NEAT run.
+  p = neat.Population(config, n)
 
-# Create the population, which is the top-level object for a NEAT run.
-p = neat.Population(config)
+  # Add a stdout reporter to show progress in the terminal.
+  p.add_reporter(neat.StdOutReporter(False))
 
-# Add a stdout reporter to show progress in the terminal.
-p.add_reporter(neat.StdOutReporter(False))
+  # Run until a solution is found.
+  winner = p.run(eval_genomes, 200)
 
-# Run until a solution is found.
-winner = p.run(eval_genomes, 200)
-
-# Display the winning genome.
-print('\nBest genome:\n{!s}'.format(winner))
+  # Display the winning genome.
+  print('\nBest genome:\n{!s}'.format(winner))
 
 # Show output of the most fit genome against training data.
 net = neat.nn.FeedForwardNetwork.create(winner, config)

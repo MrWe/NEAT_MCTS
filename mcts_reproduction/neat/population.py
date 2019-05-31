@@ -23,10 +23,13 @@ class Population(object):
         5. Go to 1.
     """
 
-    def __init__(self, config, initial_state=None):
+    def __init__(self, config, num_pop=None, initial_state=None):
         self.reporters = ReporterSet()
         self.config = config
-        self.global_fitnesses = GlobalFitnesses()
+        if num_pop:
+            self.global_fitnesses = GlobalFitnesses(num_pop)
+        else:
+            self.global_fitnesses = GlobalFitnesses(0)
         stagnation = config.stagnation_type(
             config.stagnation_config, self.reporters)
         self.reproduction = config.reproduction_type(config.reproduction_config,
@@ -90,12 +93,8 @@ class Population(object):
                 "Cannot have no generational limit with no fitness termination")
 
         k = 0
-        while n is None or k < n:
+        while time.time() - start_time < 500:
             k += 1
-
-            if k % 20 == 0:
-                self.global_fitnesses.save()
-                self.global_fitnesses.plot_graph()
 
             self.reporters.start_generation(self.generation)
 
@@ -131,20 +130,21 @@ class Population(object):
                                                                              self.config.pop_size, self.generation, fitness_function)
             
           
-
-            if self.fitness_criterion == "min":
+            if self.fitness_criterion == min:
                 if self.best_genome is None or current_best_seen.fitness < self.best_genome.fitness:
                     self.best_genome = current_best_seen
+
             else:
                 if self.best_genome is None or current_best_seen.fitness > self.best_genome.fitness:
                     self.best_genome = current_best_seen
+
             print("--- %s seconds ---" % (time.time() - start_time))
             print(self.best_genome.key, self.best_genome.fitness, self.best_genome.size())
             print(current_best_seen.key, current_best_seen.fitness, current_best_seen.size())
             self.global_fitnesses.add_fitness(self.best_genome.fitness)
 
             fv = self.best_genome.fitness
-            if self.fitness_criterion == "min":
+            if self.fitness_criterion == min:
                 if fv <= self.config.fitness_threshold:
                     self.reporters.found_solution(
                         self.config, self.generation, self.best_genome)
@@ -169,4 +169,5 @@ class Population(object):
                 self.config, self.generation, self.best_genome)
         print("--- %s seconds ---" % (time.time() - start_time))
         print(self.global_fitnesses.get_fitnesses())
+        self.global_fitnesses.save_fig()
         return self.best_genome

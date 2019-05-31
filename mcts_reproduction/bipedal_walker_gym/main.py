@@ -32,7 +32,7 @@ def eval_genomes(genomes, config):
 
 
 # Load configuration.
-config = neat.Config(neat.DefaultGenome, neat.MctsReproduction,
+config = neat.Config(neat.DefaultGenome, neat.MctsReproductionWeightEvolution,
                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
                      'config-feedforward')
 

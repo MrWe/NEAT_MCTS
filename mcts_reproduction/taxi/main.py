@@ -1,16 +1,16 @@
 
-"""
-2-input XOR example -- this is most likely the simplest possible example.
-"""
 
 from __future__ import print_function
 import gym
+import numpy as np
+from gym import envs
 import sys
 sys.path.append('..')
 import neat
 
 
-env = gym.make("CartPole-v0")
+env = gym.make("FrozenLake-v0")
+observation = env.reset()
 
 def eval_genomes(genomes, config):
     observation = env.reset()
@@ -18,19 +18,21 @@ def eval_genomes(genomes, config):
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         genome.fitness = 0
 
-        for _ in range(500):
-            action = net.activate(observation)[0]
-            action = 1 if action > 0.5 else 0
-            observation, reward, done, info = env.step(action)
-            genome.fitness += reward
+        for __ in range(20):
+          for _ in range(200):
+              action = net.activate([observation])
+              high = action.index(max(action))
+              observation, reward, done, info = env.step(high)
+              genome.fitness += reward
+              print(observation)
 
-            if done:
-                observation = env.reset()
-                break
+              if done:
+                  observation = env.reset()
+                  break
 
 
 # Load configuration.
-config = neat.Config(neat.DefaultGenome, neat.MctsReproductionWeightEvolutionPartial,
+config = neat.Config(neat.DefaultGenome, neat.MctsReproduction,
                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
                      'config-feedforward')
 
@@ -41,7 +43,7 @@ p = neat.Population(config)
 p.add_reporter(neat.StdOutReporter(False))
 
 # Run until a solution is found.
-winner = p.run(eval_genomes, 200)
+winner = p.run(eval_genomes)
 
 # Display the winning genome.
 print('\nBest genome:\n{!s}'.format(winner))
@@ -49,13 +51,15 @@ print('\nBest genome:\n{!s}'.format(winner))
 # Show output of the most fit genome against training data.
 net = neat.nn.FeedForwardNetwork.create(winner, config)
 observation = env.reset()
-for _ in range(500):
-  env.render()
-  action = net.activate(observation)[0]
-  action = 1 if action > 0.5 else 0
-  observation, reward, done, info = env.step(action)
+for __ in range(20):
+  print('\n')
+  for _ in range(200):
+    env.render(mode='human')
+    action = net.activate([observation])
+    high = action.index(max(action))
+    observation, reward, done, info = env.step(high)
 
-  if done:
-    observation = env.reset()
-    break
+    if done:
+        observation = env.reset()
+        break
 env.close()

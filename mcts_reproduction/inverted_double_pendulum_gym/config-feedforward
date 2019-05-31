@@ -76,7 +76,15 @@ species_fitness_func = max
 max_stagnation       = 10000000000
 species_elitism      = 0
 
-[mctsReproductionWeightEvolution]
+[MctsReproductionHill]
+elitism            = 10
+survival_threshold = 0.2
+
+[MctsReproductionWeightEvolution]
+elitism            = 10
+survival_threshold = 0.2
+
+[MctsReproductionWeightEvolutionPartial]
 elitism            = 10
 survival_threshold = 0.2
 
